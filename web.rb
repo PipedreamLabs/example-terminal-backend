@@ -157,6 +157,7 @@ post '/save_card_to_customer' do
   return customer.to_json
 end
 
+customer_payment_method = ""
 post '/attach_payment_method_to_customer' do
   begin
     customer = lookupOrCreateExampleCustomer
@@ -167,6 +168,8 @@ post '/attach_payment_method_to_customer' do
         customer: customer.id,
         expand: ["customer"],
     })
+
+    customer_payment_method = params[:payment_method_id]
   rescue Stripe::StripeError => e
     status 402
     return log_info("Error attaching PaymentMethod to Customer! #{e.message}")
@@ -175,5 +178,26 @@ post '/attach_payment_method_to_customer' do
   log_info("Attached PaymentMethod to Customer: #{customer.id}")
 
   status 200
-  return payment_method.to_json
+  return customer.to_json #payment_method.to_json
+end
+
+post '/capture_payment_intent_with_customer' do
+  begin
+    customer = lookupOrCreateExampleCustomer
+
+    Stripe::PaymentIntent.create({
+      payment_method_types: ['card'],
+      amount: params[:amount],
+      currency: 'usd',
+      customer: '#{customer.id}',
+      payment_method: customer_payment_method,
+    })
+  rescue Stripe::StripeError => e
+    status 402
+    return log_info("Error creating PaymentIntent with Customer! #{e.message}")
+  end
+
+  log_info("PaymentIntent with Customer successfully created: #{payment_intent.id}")
+  status 200
+  return {:intent => payment_intent.id, :secret => payment_intent.client_secret}.to_json
 end
